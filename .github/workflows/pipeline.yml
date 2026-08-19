@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - main
-      - "feature/**"
   pull_request:
     branches:
       - main
+
+permissions:
+  contents: read
 
 jobs:
   hello-ci:
@@ -15,24 +17,60 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Descargar repositorio
+        uses: actions/checkout@v6
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
 
       - name: Mostrar información del entorno
         run: |
-          echo "================================"
-          echo "      PRIMER PIPELINE CI"
-          echo "================================"
           echo "Repositorio: ${{ github.repository }}"
           echo "Rama: ${{ github.ref_name }}"
           echo "Commit: ${{ github.sha }}"
-          echo "================================"
+          python --version
+          git --version
 
-      - name: Mostrar fecha y hora
-        run: date
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
 
-      - name: Mostrar versión de Git
-        run: git --version
+      - name: Compilar aplicación
+        run: python -m compileall app
+
+      - name: Crear carpeta de reportes
+        run: mkdir -p reports
+
+      - name: Ejecutar pruebas y Quality Gate
+        run: |
+          python -m pytest \
+            --junitxml=reports/test-results.xml \
+            --cov=app \
+            --cov-report=xml:reports/coverage.xml \
+            --cov-report=html:reports/htmlcov \
+            --cov-fail-under=80
+
+      - name: Publicar reporte de pruebas
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: reports/test-results.xml
+          if-no-files-found: warn
+
+      - name: Publicar reporte de cobertura
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: |
+            reports/coverage.xml
+            reports/htmlcov/
+          if-no-files-found: warn
 
       - name: Finalizar pipeline
-        run: echo "Pipeline ejecutado correctamente."
+        run: echo "Compilación, pruebas y Quality Gate completados correctamente."
